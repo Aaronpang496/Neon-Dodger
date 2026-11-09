@@ -1,806 +1,728 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Neon Assault · Hardcore Fullscreen</title>
-  <style>
-    /* --- FORCE FULLSCREEN APP MODE --- */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Neon Assault · Hardcore</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #04060f;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    overscroll-behavior: none;
+    position: fixed; /* key: prevents mobile address bar from shifting layout */
+  }
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    background: #04060f;
+    touch-action: none;
+  }
 
-    html, body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden; /* Kills scrolling entirely */
-      background: #080d21;
-      font-family: system-ui, -apple-system, sans-serif;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-touch-callout: none;
-      overscroll-behavior: none; /* Prevents pull-to-refresh on mobile */
-    }
+  /* HUD */
+  .hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: max(10px, env(safe-area-inset-top)) 10px 10px 10px;
+    font: 800 13px/1 system-ui, sans-serif;
+    color: #e2e8f0;
+    text-shadow: 0 0 8px #0ff;
+    background: linear-gradient(to bottom, rgba(0,0,0,.85), transparent);
+    pointer-events: none;
+    z-index: 10;
+    letter-spacing: .5px;
+  }
+  .hud span {
+    background: rgba(0,20,40,.6);
+    padding: 5px 10px;
+    border-radius: 40px;
+    border: 1px solid rgba(103,232,249,.3);
+    backdrop-filter: blur(4px);
+  }
 
-    .game-wrapper {
-      position: fixed; /* Locks to the viewport, ignores page flow */
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      height: 100dvh; /* Dynamic viewport height for mobile browsers */
-      background: #080d21;
-    }
+  /* Overlay panel */
+  #panel {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 24px;
+    text-align: center;
+    background: rgba(4,8,22,.96);
+    backdrop-filter: blur(8px);
+    z-index: 30;
+  }
+  #panel.hidden { display: none; }
+  h2 {
+    color: #67e8f9;
+    font-size: clamp(2rem, 10vw, 3.5rem);
+    margin-bottom: 14px;
+    text-shadow: 0 0 20px #0ff;
+    letter-spacing: 3px;
+  }
+  p {
+    max-width: 520px;
+    line-height: 1.5;
+    color: #cbd5e1;
+    font-size: clamp(.95rem, 3.5vw, 1.15rem);
+    margin-bottom: 28px;
+  }
+  #action {
+    padding: 16px 42px;
+    border: 0;
+    border-radius: 40px;
+    background: #67e8f9;
+    color: #083344;
+    font: bold 18px system-ui;
+    box-shadow: 0 0 20px #0ff;
+    cursor: pointer;
+    transition: transform .1s;
+  }
+  #action:active { transform: scale(.95); }
 
-    canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: contain; /* Keeps the game centered without stretching */
-      background: #080d21;
-      touch-action: none;
-    }
+  /* Bottom controls */
+  .controls {
+    position: absolute;
+    left: 0; right: 0;
+    bottom: 0;
+    display: flex; gap: 12px;
+    padding: 0 16px max(16px, env(safe-area-inset-bottom)) 16px;
+    z-index: 20;
+    pointer-events: none;
+  }
+  .controls button {
+    pointer-events: auto;
+    flex: 1;
+    max-width: 220px;
+    padding: 16px 8px;
+    font: bold 16px system-ui;
+    border-radius: 30px;
+    border: 1px solid #a5f3fc;
+    background: rgba(103,232,249,.9);
+    color: #083344;
+    box-shadow: 0 0 15px rgba(0,255,255,.5);
+    cursor: pointer;
+  }
+  #dash:disabled { opacity: .45; box-shadow: none; }
+  #pause {
+    flex: .5;
+    background: rgba(196,181,253,.9);
+    color: #2e1065;
+    border-color: #c4b5fd;
+    box-shadow: 0 0 15px rgba(167,139,250,.5);
+  }
 
-    /* --- HUD (Top Bar) --- */
-    .hud {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      justify-content: space-between;
-      gap: 4px;
-      padding: max(10px, env(safe-area-inset-top)) 10px 10px 10px;
-      font-size: 13px;
-      font-weight: 800;
-      color: #e2e8f0;
-      text-shadow: 0 0 8px #0ff;
-      background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
-      pointer-events: none;
-      z-index: 10;
-      letter-spacing: 0.5px;
-    }
-
-    .hud span {
-      background: rgba(0, 20, 40, 0.6);
-      padding: 4px 10px;
-      border-radius: 40px;
-      backdrop-filter: blur(4px);
-      border: 1px solid rgba(103, 232, 249, 0.3);
-    }
-
-    /* --- Overlay Panel --- */
-    #panel {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
-      text-align: center;
-      background: rgba(4, 8, 22, 0.95);
-      backdrop-filter: blur(8px);
-      z-index: 30;
-    }
-
-    #panel.hidden { display: none; }
-
-    h2 {
-      color: #67e8f9;
-      font-size: clamp(2rem, 10vw, 3.5rem);
-      margin-bottom: 16px;
-      text-shadow: 0 0 20px #0ff;
-      letter-spacing: 3px;
-    }
-
-    p {
-      line-height: 1.5;
-      max-width: 90%;
-      color: #cbd5e1;
-      font-size: clamp(1rem, 4vw, 1.2rem);
-      margin-bottom: 30px;
-    }
-
-    button {
-      border: 0;
-      border-radius: 40px;
-      padding: 16px 40px;
-      background: #67e8f9;
-      color: #083344;
-      font: bold 18px system-ui;
-      cursor: pointer;
-      box-shadow: 0 0 20px #0ff;
-      transition: transform 0.1s, background 0.1s;
-    }
-
-    button:active {
-      transform: scale(0.95);
-      background: #a5f3fc;
-    }
-
-    /* --- Bottom Controls --- */
-    .controls {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-      padding: 0 16px max(16px, env(safe-area-inset-bottom)) 16px;
-      z-index: 20;
-      pointer-events: none;
-    }
-
-    .controls button {
-      pointer-events: auto;
-      flex: 1;
-      max-width: 200px;
-      background: rgba(103, 232, 249, 0.85);
-      backdrop-filter: blur(8px);
-      padding: 16px 8px;
-      font-size: 16px;
-      color: #083344;
-      border: 1px solid #a5f3fc;
-      box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
-    }
-
-    #dash:disabled {
-      opacity: 0.5;
-      box-shadow: none;
-      background: rgba(103, 232, 249, 0.3);
-    }
-
-    #pause {
-      background: rgba(196, 181, 253, 0.85);
-      color: #2e1065;
-      border-color: #c4b5fd;
-      box-shadow: 0 0 15px rgba(167, 139, 250, 0.5);
-      flex: 0.5;
-    }
-
-    /* --- Notice Text --- */
-    #notice {
-      position: absolute;
-      top: 20%;
-      left: 0;
-      right: 0;
-      text-align: center;
-      color: #facc15;
-      font-size: 16px;
-      font-weight: bold;
-      text-shadow: 0 0 10px #facc15, 0 0 20px #facc15;
-      pointer-events: none;
-      z-index: 25;
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-    
-    #notice.show {
-      opacity: 1;
-    }
-  </style>
+  /* Notice */
+  #notice {
+    position: absolute;
+    top: 18%; left: 0; right: 0;
+    text-align: center;
+    color: #facc15;
+    font: bold 16px system-ui;
+    text-shadow: 0 0 10px #facc15, 0 0 20px #facc15;
+    opacity: 0;
+    transition: opacity .2s;
+    pointer-events: none;
+    z-index: 25;
+  }
+  #notice.show { opacity: 1; }
+</style>
 </head>
 <body>
-<div class="game-wrapper">
-  <canvas id="game"></canvas>
+<canvas id="game"></canvas>
 
-  <div class="hud">
-    <span id="score">Score: 0</span>
-    <span id="lives">Lives: 3</span>
-    <span id="weapon">Gun: 1</span>
-    <span id="level">Level: 1</span>
-  </div>
+<div class="hud">
+  <span id="score">Score: 0</span>
+  <span id="lives">Lives: 3</span>
+  <span id="weapon">Gun: 1</span>
+  <span id="level">Level: 1</span>
+</div>
 
-  <div id="notice"></div>
+<div id="notice"></div>
 
-  <div id="panel">
-    <h2 id="title">NEON ASSAULT</h2>
-    <p id="message"></p>
-    <button id="action">Launch</button>
-  </div>
+<div id="panel">
+  <h2 id="title">NEON ASSAULT</h2>
+  <p id="message"></p>
+  <button id="action">Launch</button>
+</div>
 
-  <div class="controls">
-    <button id="dash">⚡ DASH</button>
-    <button id="pause">Pause</button>
-  </div>
+<div class="controls">
+  <button id="dash">⚡ DASH</button>
+  <button id="pause">Pause</button>
 </div>
 
 <script>
-  "use strict";
+"use strict";
 
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-  // The internal game resolution. We make it tall to fit mobile screens.
-  const W = 480, H = 840; 
+// Logical game size (taller for phones)
+const W = 480, H = 840;
 
-  // Auto-resize canvas to match screen ratio without stretching
-  function resize() {
-    canvas.width = W;
-    canvas.height = H;
-  }
-  window.addEventListener('resize', resize);
-  resize();
+// Fit canvas to fill screen while keeping aspect
+function resize() {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+  // object-fit style: scale to cover, centered
+  const scale = Math.max(vw / W, vh / H);
+  canvas.style.width = (W * scale) + 'px';
+  canvas.style.height = (H * scale) + 'px';
+  canvas.style.marginLeft = ((vw - W * scale) / 2) + 'px';
+  canvas.style.marginTop = ((vh - H * scale) / 2) + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
 
-  // --- GAME STATE ---
-  let state = "ready";
-  let player = null;
-  let enemies = [], meteors = [], shots = [];
-  let hostile = [], pickups = [], particles = [];
+// Game state
+let state = "ready";
+let player = null;
+let enemies = [], meteors = [], shots = [];
+let hostile = [], pickups = [], particles = [];
 
-  let score = 0;
-  let elapsed = 0;
-  let spawnClock = 0, meteorClock = 0, shotClock = 0, pickupClock = 0;
-  let notice = "", noticeTime = 0;
+let score = 0, elapsed = 0;
+let spawnClock = 0, meteorClock = 0, shotClock = 0, pickupClock = 0;
+let noticeTime = 0;
 
-  // Time slow mechanic (Bullet Time)
-  let timeScale = 1;
-  let timeWarpCooldown = 0;
+// Bullet time
+let timeScale = 1, warpCooldown = 0;
 
-  let pointer = null, previousPointer = null, pendingX = 0, pendingY = 0;
-  const keys = new Set();
+// Screen shake
+let shakeMag = 0;
 
-  const ENEMY_TYPES = { DRONE: 1, TANK: 2, SNIPER: 3, BOMBER: 4 };
+let pointer = null, prevPtr = null, pendX = 0, pendY = 0;
+const keys = new Set();
 
-  const stars = Array.from({ length: 90 }, () => ({
-    x: Math.random() * W,
-    y: Math.random() * H,
-    speed: 20 + Math.random() * 120,
-    r: 0.5 + Math.random() * 2
-  }));
+// New enemy types
+const E = { DRONE: 1, TANK: 2, SNIPER: 3, BOMBER: 4, WEAVER: 5, CHARGER: 6 };
 
-  function random(a, b) { return a + Math.random() * (b - a); }
-  function level() { return 1 + Math.floor(elapsed / 15); } // Levels up slightly faster
+const stars = Array.from({ length: 100 }, () => ({
+  x: Math.random() * W, y: Math.random() * H,
+  speed: 25 + Math.random() * 130, r: .5 + Math.random() * 2
+}));
 
-  function clearInput() {
-    keys.clear();
-    pointer = null;
-    previousPointer = null;
-    pendingX = pendingY = 0;
-  }
+const rand = (a, b) => a + Math.random() * (b - a);
+const lvl = () => 1 + Math.floor(elapsed / 15);
 
-  function panel(title, text, label, action) {
-    document.getElementById("title").textContent = title;
-    document.getElementById("message").textContent = text;
-    const btn = document.getElementById("action");
-    btn.textContent = label;
-    btn.onclick = action;
-    document.getElementById("panel").classList.remove("hidden");
-  }
+function clearInput() {
+  keys.clear(); pointer = null; prevPtr = null; pendX = pendY = 0;
+}
 
-  function announce(text) {
-    notice = text;
-    noticeTime = 1.5;
-    const el = document.getElementById("notice");
-    el.textContent = text;
-    el.classList.add("show");
-  }
+function panel(title, text, label, action) {
+  document.getElementById("title").textContent = title;
+  document.getElementById("message").textContent = text;
+  const btn = document.getElementById("action");
+  btn.textContent = label;
+  btn.onclick = action;
+  document.getElementById("panel").classList.remove("hidden");
+}
 
-  function start() {
-    player = {
-      x: W / 2, y: H - 150, r: 14,
-      hp: 3, gun: 1, shield: false,
-      immune: 2.0, cooldown: 0, dashTime: 0,
-      dirX: 0, dirY: -1, dashX: 0, dashY: -1
-    };
+function announce(text) {
+  document.getElementById("notice").textContent = text;
+  document.getElementById("notice").classList.add("show");
+  noticeTime = 1.5;
+}
 
-    enemies = []; meteors = []; shots = []; hostile = []; pickups = []; particles = [];
-    score = elapsed = shotClock = 0;
-    spawnClock = 0.5; meteorClock = 1.0; pickupClock = 8;
-    timeScale = 1; timeWarpCooldown = 0;
-    
-    clearInput();
+function start() {
+  player = {
+    x: W/2, y: H - 160, r: 14,
+    hp: 3, gun: 1, shield: false,
+    immune: 2, cooldown: 0, dashTime: 0,
+    dirX: 0, dirY: -1, dashX: 0, dashY: -1
+  };
+  enemies = []; meteors = []; shots = []; hostile = []; pickups = []; particles = [];
+  score = elapsed = shotClock = 0;
+  spawnClock = .5; meteorClock = 1; pickupClock = 8;
+  timeScale = 1; warpCooldown = 0; shakeMag = 0;
+  clearInput();
+  state = "playing";
+  document.getElementById("panel").classList.add("hidden");
+  document.getElementById("pause").textContent = "Pause";
+  document.getElementById("notice").classList.remove("show");
+}
+
+function pause() {
+  if (state === "playing") {
+    state = "paused"; clearInput();
+    document.getElementById("pause").textContent = "Resume";
+    panel("PAUSED", "Your flight is waiting.", "Resume", pause);
+  } else if (state === "paused") {
     state = "playing";
-    document.getElementById("panel").classList.add("hidden");
     document.getElementById("pause").textContent = "Pause";
-    document.getElementById("notice").classList.remove("show");
+    document.getElementById("panel").classList.add("hidden");
   }
+}
 
-  function pause() {
-    if (state === "playing") {
-      state = "paused";
-      clearInput();
-      document.getElementById("pause").textContent = "Resume";
-      panel("PAUSED", "Your flight is waiting.", "Resume", pause);
-    } else if (state === "paused") {
-      state = "playing";
-      document.getElementById("pause").textContent = "Pause";
-      document.getElementById("panel").classList.add("hidden");
-    }
+function burst(x, y, color, count = 15) {
+  for (let i = 0; i < count; i++) {
+    const a = rand(0, Math.PI*2), s = rand(40, 280);
+    particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: .65, color });
   }
+}
 
-  function burst(x, y, color, count = 15) {
-    for (let i = 0; i < count; i++) {
-      const angle = random(0, Math.PI * 2);
-      const speed = random(40, 260);
-      particles.push({
-        x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-        life: 0.6, color
-      });
-    }
+function hurt() {
+  if (state !== "playing" || player.immune > 0) return;
+  player.immune = 1.5;
+  shakeMag = 14;
+  if (player.shield) {
+    player.shield = false;
+    burst(player.x, player.y, "#67e8f9", 40);
+    announce("Shield absorbed!");
+    return;
   }
-
-  function hurt() {
-    if (state !== "playing" || player.immune > 0) return;
-    player.immune = 1.5;
-    if (player.shield) {
-      player.shield = false;
-      burst(player.x, player.y, "#67e8f9", 35);
-      announce("Shield Destroyed!");
-      return;
-    }
-    player.hp -= 1;
-    player.gun = Math.max(1, player.gun - 1);
-    burst(player.x, player.y, "#fb7185", 40);
-    if (player.hp <= 0) {
-      state = "over";
-      clearInput();
-      panel("SHIP DESTROYED", "Score: " + score + " · Level: " + level(), "Launch again", start);
-    }
+  player.hp -= 1;
+  player.gun = Math.max(1, player.gun - 1);
+  burst(player.x, player.y, "#fb7185", 45);
+  if (player.hp <= 0) {
+    state = "over"; clearInput();
+    panel("SHIP DESTROYED", `Score: ${score} · Level: ${lvl()}`, "Launch again", start);
   }
+}
 
-  function dash() {
-    if (state !== "playing" || player.cooldown > 0) return;
-    player.dashX = player.dirX;
-    player.dashY = player.dirY;
-    player.dashTime = 0.2;
-    player.cooldown = 2.5;
-    player.immune = Math.max(player.immune, 0.4);
-    
-    // Trigger Bullet Time on dash for an exciting hardcore mechanic
-    timeScale = 0.25;
-    timeWarpCooldown = 0.4;
-    
-    burst(player.x, player.y, "#ffffff", 20);
-  }
+function dash() {
+  if (state !== "playing" || player.cooldown > 0) return;
+  player.dashX = player.dirX;
+  player.dashY = player.dirY;
+  player.dashTime = .2;
+  player.cooldown = 2.4;
+  player.immune = Math.max(player.immune, .4);
+  timeScale = .25;
+  warpCooldown = .45;
+  shakeMag = 8;
+  burst(player.x, player.y, "#ffffff", 20);
+}
 
-  function fire() {
-    let angles = [0];
-    if (player.gun === 2) angles = [-0.12, 0.12];
-    else if (player.gun === 3) angles = [-0.22, 0, 0.22];
-    else if (player.gun >= 4) angles = [-0.35, -0.12, 0.12, 0.35];
-
-    for (const angle of angles) {
-      shots.push({
-        x: player.x, y: player.y - 20,
-        vx: Math.sin(angle) * 650, vy: -Math.cos(angle) * 650, dead: false
-      });
-    }
-  }
-
-  // --- SPAWNING ---
-  function spawnEnemy() {
-    const lvl = level();
-    const roll = Math.random();
-    let type = ENEMY_TYPES.DRONE;
-    
-    if (roll < 0.2 && lvl >= 2) type = ENEMY_TYPES.SNIPER;
-    else if (roll < 0.45 && lvl >= 3) type = ENEMY_TYPES.TANK;
-    else if (roll < 0.6 && lvl >= 4) type = ENEMY_TYPES.BOMBER;
-
-    const baseX = random(40, W - 40);
-    let hp, r, speed, fireIn;
-
-    switch (type) {
-      case ENEMY_TYPES.TANK:
-        hp = 8 + lvl; r = 28; speed = 35 + lvl * 2; fireIn = random(1.5, 2.5);
-        break;
-      case ENEMY_TYPES.SNIPER:
-        hp = 2 + lvl * 0.5; r = 15; speed = 65 + lvl * 5; fireIn = random(0.8, 1.4);
-        break;
-      case ENEMY_TYPES.BOMBER:
-        hp = 5 + lvl * 0.8; r = 22; speed = 45 + lvl * 3; fireIn = random(1.2, 2.0);
-        break;
-      default:
-        hp = 3 + lvl * 0.5; r = 18; speed = 75 + lvl * 4; fireIn = random(1.0, 1.8);
-    }
-
-    enemies.push({
-      x: baseX, baseX, y: -50, r, hp, maxHp: hp, type,
-      age: 0, phase: random(0, Math.PI * 2), speed, fireIn, dead: false,
-      wobble: type === ENEMY_TYPES.DRONE ? 30 : 15
+function fire() {
+  let angles = [0];
+  if (player.gun === 2) angles = [-.12, .12];
+  else if (player.gun === 3) angles = [-.22, 0, .22];
+  else if (player.gun >= 4) angles = [-.35, -.12, .12, .35];
+  for (const a of angles) {
+    shots.push({
+      x: player.x, y: player.y - 20,
+      vx: Math.sin(a)*660, vy: -Math.cos(a)*660, dead: false
     });
   }
+}
 
-  function enemyFire(enemy) {
-    const dx = player.x - enemy.x;
-    const dy = player.y - enemy.y;
-    const angle = Math.atan2(dy, dx);
-    const speed = Math.min(320, 180 + level() * 12);
+function spawnEnemy() {
+  const l = lvl(), roll = Math.random();
+  let type = E.DRONE;
+  if (roll < .15 && l >= 2) type = E.SNIPER;
+  else if (roll < .3 && l >= 3) type = E.TANK;
+  else if (roll < .42 && l >= 4) type = E.BOMBER;
+  else if (roll < .52 && l >= 5) type = E.WEAVER;
+  else if (roll < .62 && l >= 6) type = E.CHARGER;
 
-    const shoot = (off, spd, rad) => {
-      hostile.push({
-        x: enemy.x, y: enemy.y,
-        vx: Math.cos(angle + off) * spd, vy: Math.sin(angle + off) * spd,
-        r: rad, dead: false
-      });
-    };
-
-    if (enemy.type === ENEMY_TYPES.TANK) {
-      shoot(-0.25, speed*0.9, 6); shoot(0, speed*0.9, 6); shoot(0.25, speed*0.9, 6);
-    } else if (enemy.type === ENEMY_TYPES.SNIPER) {
-      shoot(0, speed*1.5, 4.5);
-    } else if (enemy.type === ENEMY_TYPES.BOMBER) {
-      shoot(-0.4, speed*0.7, 8); shoot(0.4, speed*0.7, 8);
-    } else {
-      shoot(0, speed, 5);
-    }
-    burst(enemy.x, enemy.y, "#f0abfc", 4);
+  const baseX = rand(40, W - 40);
+  let hp, r, speed, fireIn;
+  switch (type) {
+    case E.TANK:    hp = 9 + l;        r = 28; speed = 35 + l*2; fireIn = rand(1.5, 2.5); break;
+    case E.SNIPER:  hp = 2 + l*.5;     r = 15; speed = 70 + l*5; fireIn = rand(.8, 1.4); break;
+    case E.BOMBER:  hp = 5 + l*.8;     r = 22; speed = 45 + l*3; fireIn = rand(1.2, 2); break;
+    case E.WEAVER:  hp = 4 + l*.6;     r = 18; speed = 55 + l*4; fireIn = rand(2, 3); break;
+    case E.CHARGER: hp = 6 + l*.7;     r = 20; speed = 40 + l*3; fireIn = 999; break; // doesn't shoot
+    default:        hp = 3 + l*.5;     r = 18; speed = 80 + l*4; fireIn = rand(1, 1.8);
   }
 
-  function dropPickup(x, y) {
-    if (Math.random() > 0.35) return;
-    const roll = Math.random();
-    pickups.push({
-      x, y, r: 14, dead: false,
-      type: roll < 0.5 ? "gun" : roll < 0.8 ? "shield" : "repair"
+  enemies.push({
+    x: baseX, baseX, y: -60, r, hp, maxHp: hp, type,
+    age: 0, phase: rand(0, Math.PI*2), speed, fireIn, dead: false,
+    wobble: type === E.DRONE ? 32 : 15,
+    chargeDir: 0, chargeCd: 2
+  });
+}
+
+function enemyFire(e) {
+  const ang = Math.atan2(player.y - e.y, player.x - e.x);
+  const spd = Math.min(320, 180 + lvl() * 12);
+  const shoot = (off, s, r) => hostile.push({
+    x: e.x, y: e.y,
+    vx: Math.cos(ang + off) * s,
+    vy: Math.sin(ang + off) * s,
+    r, dead: false
+  });
+
+  if (e.type === E.TANK) { shoot(-.25, spd*.9, 6); shoot(0, spd*.9, 6); shoot(.25, spd*.9, 6); }
+  else if (e.type === E.SNIPER) { shoot(0, spd*1.6, 4.5); }
+  else if (e.type === E.BOMBER) { shoot(-.4, spd*.7, 8); shoot(.4, spd*.7, 8); }
+  else if (e.type === E.WEAVER) {
+    // ring pattern
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      hostile.push({ x: e.x, y: e.y, vx: Math.cos(a)*spd*.7, vy: Math.sin(a)*spd*.7, r: 5, dead: false });
+    }
+  } else { shoot(0, spd, 5); }
+  burst(e.x, e.y, "#f0abfc", 4);
+}
+
+function dropPickup(x, y) {
+  if (Math.random() > .35) return;
+  const r = Math.random();
+  pickups.push({ x, y, r: 14, dead: false, type: r < .5 ? "gun" : r < .8 ? "shield" : "repair" });
+}
+
+function update(dt) {
+  if (state === "paused") return;
+
+  if (warpCooldown > 0) { warpCooldown -= dt; if (warpCooldown <= 0) timeScale = 1; }
+  if (shakeMag > 0) shakeMag = Math.max(0, shakeMag - dt * 40);
+
+  const gdt = dt * timeScale;
+
+  for (const s of stars) s.y = (s.y + s.speed * dt) % H;
+
+  for (const p of particles) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+  particles = particles.filter(p => p.life > 0);
+
+  if (state !== "playing") return;
+
+  elapsed += gdt;
+  if (noticeTime > 0) { noticeTime -= dt; if (noticeTime <= 0) document.getElementById("notice").classList.remove("show"); }
+  player.immune = Math.max(0, player.immune - gdt);
+  player.cooldown = Math.max(0, player.cooldown - dt);
+
+  // Movement
+  let dx = (keys.has("ArrowRight") || keys.has("d") ? 1 : 0) - (keys.has("ArrowLeft") || keys.has("a") ? 1 : 0);
+  let dy = (keys.has("ArrowDown") || keys.has("s") ? 1 : 0) - (keys.has("ArrowUp") || keys.has("w") ? 1 : 0);
+
+  if (player.dashTime > 0) {
+    const step = Math.min(gdt, player.dashTime);
+    player.x += player.dashX * 1000 * step;
+    player.y += player.dashY * 1000 * step;
+    player.dashTime = Math.max(0, player.dashTime - gdt);
+    pendX = pendY = 0;
+  } else {
+    const len = Math.hypot(dx, dy);
+    if (len > 0) { dx /= len; dy /= len; player.x += dx*360*gdt; player.y += dy*360*gdt; player.dirX = dx; player.dirY = dy; }
+    const tl = Math.hypot(pendX, pendY);
+    if (tl > 0) {
+      const step = Math.min(tl, 800 * gdt);
+      const nx = pendX/tl, ny = pendY/tl;
+      player.x += nx*step; player.y += ny*step;
+      pendX -= nx*step; pendY -= ny*step;
+      player.dirX = nx; player.dirY = ny;
+    }
+  }
+  player.x = Math.max(24, Math.min(W - 24, player.x));
+  player.y = Math.max(50, Math.min(H - 30, player.y));
+
+  shotClock -= gdt;
+  if (shotClock <= 0) { fire(); shotClock = .14; }
+
+  spawnClock -= gdt;
+  if (spawnClock <= 0) { spawnEnemy(); spawnClock = Math.max(.25, .8 - lvl() * .06); }
+
+  meteorClock -= gdt;
+  if (meteorClock <= 0) {
+    meteors.push({
+      x: rand(30, W - 30), y: -50, r: rand(18, 32), hp: 3,
+      speed: rand(130, 190) + lvl() * 10, angle: 0, dead: false
     });
+    meteorClock = rand(.8, 1.6);
   }
 
-  // --- UPDATE LOGIC ---
-  function update(dt) {
-    if (state === "paused") return;
-
-    // Time scale logic (Bullet time)
-    if (timeWarpCooldown > 0) {
-      timeWarpCooldown -= dt;
-      if (timeWarpCooldown <= 0) timeScale = 1;
-    }
-    const gameDt = dt * timeScale;
-
-    // Background stars move normally
-    for (const star of stars) {
-      star.y = (star.y + star.speed * dt) % H;
-    }
-
-    // Particles
-    for (const p of particles) {
-      p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt;
-    }
-    particles = particles.filter(p => p.life > 0);
-
-    if (state !== "playing") return;
-
-    // Use gameDt for game logic so bullet time works
-    elapsed += gameDt;
-    noticeTime = Math.max(0, noticeTime - dt);
-    if (noticeTime <= 0) document.getElementById("notice").classList.remove("show");
-    
-    player.immune = Math.max(0, player.immune - gameDt);
-    player.cooldown = Math.max(0, player.cooldown - dt); // Cooldown uses real time
-
-    // Player Movement
-    let dx = Number(keys.has("ArrowRight") || keys.has("d")) - Number(keys.has("ArrowLeft") || keys.has("a"));
-    let dy = Number(keys.has("ArrowDown") || keys.has("s")) - Number(keys.has("ArrowUp") || keys.has("w"));
-
-    if (player.dashTime > 0) {
-      const step = Math.min(gameDt, player.dashTime);
-      player.x += player.dashX * 1000 * step;
-      player.y += player.dashY * 1000 * step;
-      player.dashTime = Math.max(0, player.dashTime - gameDt);
-      pendingX = pendingY = 0;
-    } else {
-      const length = Math.hypot(dx, dy);
-      if (length > 0) {
-        dx /= length; dy /= length;
-        player.x += dx * 360 * gameDt;
-        player.y += dy * 360 * gameDt;
-        player.dirX = dx; player.dirY = dy;
-      }
-      const touchLength = Math.hypot(pendingX, pendingY);
-      if (touchLength > 0) {
-        const step = Math.min(touchLength, 800 * gameDt);
-        const nx = pendingX / touchLength;
-        const ny = pendingY / touchLength;
-        player.x += nx * step; player.y += ny * step;
-        pendingX -= nx * step; pendingY -= ny * step;
-        player.dirX = nx; player.dirY = ny;
-      }
-    }
-
-    // Clamp player
-    player.x = Math.max(24, Math.min(W - 24, player.x));
-    player.y = Math.max(50, Math.min(H - 30, player.y));
-
-    // Shooting
-    shotClock -= gameDt;
-    if (shotClock <= 0) {
-      fire();
-      shotClock = 0.15;
-    }
-
-    // Spawns
-    spawnClock -= gameDt;
-    if (spawnClock <= 0) {
-      spawnEnemy();
-      spawnClock = Math.max(0.25, 0.8 - level() * 0.06);
-    }
-
-    meteorClock -= gameDt;
-    if (meteorClock <= 0) {
-      meteors.push({
-        x: random(30, W - 30), y: -50, r: random(18, 32), hp: 3,
-        speed: random(130, 190) + level() * 10, angle: 0, dead: false
-      });
-      meteorClock = random(0.8, 1.6);
-    }
-
-    pickupClock -= gameDt;
-    if (pickupClock <= 0) {
-      pickups.push({
-        x: random(50, W - 50), y: -20, r: 14,
-        type: Math.random() < 0.6 ? "gun" : "shield", dead: false
-      });
-      pickupClock = 9;
-    }
-
-    // Enemy updates
-    for (const enemy of enemies) {
-      enemy.age += gameDt;
-      enemy.y += enemy.speed * gameDt;
-      enemy.x = enemy.baseX + Math.sin(enemy.age * 2 + enemy.phase) * enemy.wobble;
-      enemy.fireIn -= gameDt;
-      if (enemy.fireIn <= 0 && enemy.y > 40 && enemy.y < H - 150) {
-        enemyFire(enemy);
-        enemy.fireIn = Math.max(0.5, 1.4 - level() * 0.05);
-      }
-    }
-
-    // Meteor updates
-    for (const meteor of meteors) {
-      meteor.y += meteor.speed * gameDt;
-      meteor.angle += gameDt * 1.5;
-    }
-
-    // Shots vs Enemies
-    for (const shot of shots) {
-      shot.x += shot.vx * gameDt; shot.y += shot.vy * gameDt;
-      for (const target of [...enemies, ...meteors]) {
-        if (target.dead || shot.dead) continue;
-        if (Math.hypot(shot.x - target.x, shot.y - target.y) < target.r + 5) {
-          shot.dead = true; target.hp -= 1;
-          burst(shot.x, shot.y, "#facc15", 2);
-          if (target.hp <= 0) {
-            target.dead = true;
-            const isEnemy = 'type' in target;
-            score += isEnemy ? (target.type === ENEMY_TYPES.TANK ? 150 : target.type === ENEMY_TYPES.SNIPER ? 80 : 50) : 20;
-            burst(target.x, target.y, isEnemy ? "#f0abfc" : "#fb923c", 25);
-            if (isEnemy) dropPickup(target.x, target.y);
-          }
-        }
-      }
-    }
-
-    // Hostile bullets
-    for (const bullet of hostile) {
-      bullet.x += bullet.vx * gameDt; bullet.y += bullet.vy * gameDt;
-      if (Math.hypot(bullet.x - player.x, bullet.y - player.y) < bullet.r + player.r) {
-        bullet.dead = true; hurt();
-      }
-    }
-
-    // Player vs Enemies/Meteors
-    for (const target of [...enemies, ...meteors]) {
-      if (target.dead) continue;
-      if (Math.hypot(target.x - player.x, target.y - player.y) < target.r + player.r) {
-        if (player.dashTime > 0) {
-          target.dead = true; score += 30;
-          burst(target.x, target.y, "#67e8f9", 30);
-        } else {
-          hurt();
-        }
-      }
-    }
-
-    // Pickups
-    for (const pickup of pickups) {
-      pickup.y += 120 * gameDt;
-      if (Math.hypot(pickup.x - player.x, pickup.y - player.y) < pickup.r + player.r) {
-        pickup.dead = true; score += 30;
-        if (pickup.type === "gun") {
-          player.gun = Math.min(4, player.gun + 1);
-          announce("Weapon Upgraded!");
-        } else if (pickup.type === "shield") {
-          player.shield = true;
-          announce("Shield Online!");
-        } else {
-          player.hp = Math.min(5, player.hp + 1);
-          announce("Hull Repaired!");
-        }
-        burst(pickup.x, pickup.y, "#facc15", 15);
-      }
-    }
-
-    // Cleanup
-    enemies = enemies.filter(e => !e.dead && e.y < H + 60);
-    meteors = meteors.filter(m => !m.dead && m.y < H + 60);
-    shots = shots.filter(s => !s.dead && s.y > -40 && s.x > -40 && s.x < W + 40);
-    hostile = hostile.filter(b => !b.dead && b.x > -40 && b.x < W + 40 && b.y > -40 && b.y < H + 40);
-    pickups = pickups.filter(p => !p.dead && p.y < H + 40);
+  pickupClock -= gdt;
+  if (pickupClock <= 0) {
+    pickups.push({ x: rand(50, W - 50), y: -20, r: 14, type: Math.random() < .6 ? "gun" : "shield", dead: false });
+    pickupClock = 9;
   }
 
-  // --- DRAWING ---
-  function circle(x, y, r, color) {
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-  }
+  // Enemies
+  for (const e of enemies) {
+    e.age += gdt;
 
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-
-    // Stars
-    for (const star of stars) circle(star.x, star.y, star.r, "#64748b");
-
-    // Meteors
-    for (const meteor of meteors) {
-      ctx.save(); ctx.translate(meteor.x, meteor.y); ctx.rotate(meteor.angle);
-      ctx.fillStyle = "#78350f"; ctx.strokeStyle = "#fb923c"; ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (let i = 0; i < 8; i++) {
-        const ang = i * Math.PI / 4;
-        const r = meteor.r * (i % 2 ? 0.7 : 1);
-        const x = Math.cos(ang) * r, y = Math.sin(ang) * r;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
-    }
-
-    // Enemies
-    for (const enemy of enemies) {
-      const r = enemy.r;
-      ctx.save(); ctx.translate(enemy.x, enemy.y);
-      
-      let fill = "#fb7185";
-      if (enemy.type === ENEMY_TYPES.TANK) fill = "#c084fc";
-      else if (enemy.type === ENEMY_TYPES.SNIPER) fill = "#f472b6";
-      else if (enemy.type === ENEMY_TYPES.BOMBER) fill = "#fbbf24";
-
-      ctx.fillStyle = fill;
-      ctx.beginPath();
-      ctx.moveTo(0, r); ctx.lineTo(-r, -r * 0.7); ctx.lineTo(0, -r * 0.3); ctx.lineTo(r, -r * 0.7);
-      ctx.closePath(); ctx.fill();
-      circle(0, 0, 5, "#312e81");
-
-      // HP bar
-      ctx.fillStyle = "#334155"; ctx.fillRect(-r, -r - 12, r * 2, 5);
-      ctx.fillStyle = "#f0abfc"; ctx.fillRect(-r, -r - 12, r * 2 * Math.max(0, enemy.hp / enemy.maxHp), 5);
-      ctx.restore();
-    }
-
-    // Player shots
-    ctx.fillStyle = "#a5f3fc";
-    for (const shot of shots) ctx.fillRect(shot.x - 2.5, shot.y - 9, 5, 16);
-
-    // Hostile bullets
-    for (const bullet of hostile) {
-      circle(bullet.x, bullet.y, bullet.r + 3, "#701a75");
-      circle(bullet.x, bullet.y, bullet.r, "#f0abfc");
-    }
-
-    // Pickups
-    for (const pickup of pickups) {
-      const color = pickup.type === "gun" ? "#facc15" : pickup.type === "shield" ? "#67e8f9" : "#86efac";
-      ctx.strokeStyle = color; ctx.lineWidth = 3.5;
-      ctx.beginPath(); ctx.arc(pickup.x, pickup.y, pickup.r, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = color;
-      if (pickup.type !== "shield") {
-        ctx.fillRect(pickup.x - 2.5, pickup.y - 8, 5, 16); ctx.fillRect(pickup.x - 8, pickup.y - 2.5, 16, 5);
+    if (e.type === E.CHARGER) {
+      // Charger: hovers, then dashes toward player
+      if (e.chargeCd > 0) {
+        e.chargeCd -= gdt;
+        e.y += e.speed * .3 * gdt;
+        e.x = e.baseX + Math.sin(e.age * 3) * 20;
       } else {
-        circle(pickup.x, pickup.y, 6, color);
+        const a = Math.atan2(player.y - e.y, player.x - e.x);
+        e.x += Math.cos(a) * e.speed * 3 * gdt;
+        e.y += Math.sin(a) * e.speed * 3 * gdt;
+        if (Math.hypot(e.x - player.x, e.y - player.y) < e.r + player.r + 5) {
+          hurt();
+          e.dead = true;
+          burst(e.x, e.y, "#fb923c", 30);
+          score += 80;
+        }
+      }
+      continue;
+    }
+
+    e.y += e.speed * gdt;
+    e.x = e.baseX + Math.sin(e.age * 2 + e.phase) * e.wobble;
+    e.fireIn -= gdt;
+    if (e.fireIn <= 0 && e.y > 40 && e.y < H - 150) {
+      enemyFire(e);
+      e.fireIn = Math.max(.5, 1.4 - lvl() * .05);
+    }
+  }
+
+  for (const m of meteors) { m.y += m.speed * gdt; m.angle += gdt * 1.5; }
+
+  // Player shots
+  for (const s of shots) {
+    s.x += s.vx * gdt; s.y += s.vy * gdt;
+    for (const t of [...enemies, ...meteors]) {
+      if (t.dead || s.dead) continue;
+      if (Math.hypot(s.x - t.x, s.y - t.y) < t.r + 5) {
+        s.dead = true; t.hp -= 1;
+        burst(s.x, s.y, "#facc15", 2);
+        if (t.hp <= 0) {
+          t.dead = true;
+          const isEnemy = "type" in t;
+          score += isEnemy ? (t.type === E.TANK ? 150 : t.type === E.WEAVER ? 120 : t.type === E.CHARGER ? 100 : t.type === E.SNIPER ? 80 : 50) : 20;
+          burst(t.x, t.y, isEnemy ? "#f0abfc" : "#fb923c", 25);
+          if (isEnemy) dropPickup(t.x, t.y);
+        }
       }
     }
+  }
 
-    // Particles
-    for (const p of particles) {
-      ctx.globalAlpha = Math.max(0, p.life / 0.6);
-      ctx.fillStyle = p.color; ctx.fillRect(p.x - 2, p.y - 2, 5, 5);
+  for (const b of hostile) {
+    b.x += b.vx * gdt; b.y += b.vy * gdt;
+    if (Math.hypot(b.x - player.x, b.y - player.y) < b.r + player.r) {
+      b.dead = true; hurt();
     }
-    ctx.globalAlpha = 1;
+  }
 
-    // Player
-    if (player && state !== "over") {
-      ctx.save(); ctx.translate(player.x, player.y);
-      ctx.globalAlpha = player.immune > 0 ? 0.4 + Math.abs(Math.sin(elapsed * 25)) * 0.6 : 1;
-
-      // Flame
-      ctx.fillStyle = "#fb923c";
-      ctx.beginPath();
-      ctx.moveTo(-8, 15); ctx.lineTo(0, 32 + Math.random() * 12); ctx.lineTo(8, 15); ctx.fill();
-
-      // Ship
-      ctx.shadowColor = "#67e8f9"; ctx.shadowBlur = 22;
-      ctx.fillStyle = player.dashTime > 0 ? "#ffffff" : "#67e8f9";
-      ctx.beginPath();
-      ctx.moveTo(0, -24); ctx.lineTo(19, 18); ctx.lineTo(0, 9); ctx.lineTo(-19, 18); ctx.closePath(); ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Shield
-      if (player.shield) {
-        ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 3.5;
-        ctx.beginPath(); ctx.arc(0, 0, 32, 0, Math.PI * 2); ctx.stroke();
+  for (const t of [...enemies, ...meteors]) {
+    if (t.dead) continue;
+    if (Math.hypot(t.x - player.x, t.y - player.y) < t.r + player.r) {
+      if (player.dashTime > 0) {
+        t.dead = true; score += 30;
+        burst(t.x, t.y, "#67e8f9", 30);
+      } else {
+        hurt();
       }
-      ctx.restore();
-    }
-    
-    // Draw Bullet Time effect (tint screen slightly blue)
-    if (timeScale < 1) {
-      ctx.fillStyle = "rgba(103, 232, 249, 0.08)";
-      ctx.fillRect(0, 0, W, H);
     }
   }
 
-  function hud() {
-    if (!player) return;
-    document.getElementById("score").textContent = "Score: " + score;
-    document.getElementById("lives").textContent = "Lives: " + player.hp;
-    document.getElementById("weapon").textContent = "Gun: " + player.gun;
-    document.getElementById("level").textContent = "Level: " + level();
-
-    const dashBtn = document.getElementById("dash");
-    dashBtn.disabled = state !== "playing" || player.cooldown > 0;
-    dashBtn.textContent = player.cooldown > 0 ? "⚡ " + player.cooldown.toFixed(1) + "s" : "⚡ DASH";
-  }
-
-  // --- INPUT HANDLING ---
-  function point(event) {
-    const rect = canvas.getBoundingClientRect();
-    return { x: (event.clientX - rect.left) * W / rect.width, y: (event.clientY - rect.top) * H / rect.height };
-  }
-
-  canvas.addEventListener("pointerdown", e => {
-    if (state !== "playing" || pointer !== null) return;
-    e.preventDefault(); pointer = e.pointerId; previousPointer = point(e);
-    canvas.setPointerCapture(pointer);
-  });
-
-  canvas.addEventListener("pointermove", e => {
-    if (e.pointerId !== pointer || !previousPointer) return;
-    e.preventDefault(); const p = point(e);
-    pendingX += p.x - previousPointer.x; pendingY += p.y - previousPointer.y;
-    previousPointer = p;
-  });
-
-  function release(e) {
-    if (e.pointerId === pointer) { pointer = null; previousPointer = null; pendingX = pendingY = 0; }
-  }
-  canvas.addEventListener("pointerup", release);
-  canvas.addEventListener("pointercancel", release);
-  canvas.addEventListener("lostpointercapture", release);
-
-  document.getElementById("dash").addEventListener("pointerdown", e => { e.preventDefault(); dash(); });
-  document.getElementById("pause").onclick = pause;
-
-  window.addEventListener("keydown", e => {
-    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "w", "a", "s", "d"].includes(key)) {
-      e.preventDefault(); if (state === "playing") keys.add(key);
+  for (const p of pickups) {
+    p.y += 120 * gdt;
+    if (Math.hypot(p.x - player.x, p.y - player.y) < p.r + player.r) {
+      p.dead = true; score += 30;
+      if (p.type === "gun") {
+        player.gun = Math.min(4, player.gun + 1);
+        announce("Weapon Upgraded!");
+      } else if (p.type === "shield") {
+        player.shield = true; announce("Shield Online!");
+      } else {
+        player.hp = Math.min(5, player.hp + 1); announce("Hull Repaired!");
+      }
+      burst(p.x, p.y, "#facc15", 15);
     }
-    if (e.code === "Space") { e.preventDefault(); if (!e.repeat) dash(); }
-    if (e.code === "KeyP" && !e.repeat) pause();
-  });
-
-  window.addEventListener("keyup", e => keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));
-  window.addEventListener("blur", () => { clearInput(); if (state === "playing") pause(); });
-
-  // --- BOOT ---
-  panel("NEON ASSAULT", "Hardcore edition: Bullet-time dash, new monsters, faster spawns.", "Launch", start);
-
-  let previous = performance.now();
-  function frame(now) {
-    const elapsedTime = Math.min((now - previous) / 1000, 0.05);
-    previous = now;
-    const steps = Math.max(1, Math.ceil(elapsedTime / 0.008));
-    const dt = elapsedTime / steps;
-    for (let i = 0; i < steps; i++) update(dt);
-    hud();
-    draw();
-    requestAnimationFrame(frame);
   }
+
+  enemies = enemies.filter(e => !e.dead && e.y < H + 80);
+  meteors = meteors.filter(m => !m.dead && m.y < H + 60);
+  shots = shots.filter(s => !s.dead && s.y > -40 && s.x > -40 && s.x < W + 40);
+  hostile = hostile.filter(b => !b.dead && b.x > -40 && b.x < W + 40 && b.y > -40 && b.y < H + 40);
+  pickups = pickups.filter(p => !p.dead && p.y < H + 40);
+}
+
+function circle(x, y, r, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+}
+
+function draw() {
+  ctx.save();
+  if (shakeMag > 0) ctx.translate(rand(-shakeMag, shakeMag), rand(-shakeMag, shakeMag));
+  ctx.clearRect(-20, -20, W + 40, H + 40);
+
+  for (const s of stars) circle(s.x, s.y, s.r, "#64748b");
+
+  for (const m of meteors) {
+    ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(m.angle);
+    ctx.fillStyle = "#78350f"; ctx.strokeStyle = "#fb923c"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI/4, r = m.r * (i % 2 ? .7 : 1);
+      const x = Math.cos(a)*r, y = Math.sin(a)*r;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+
+  for (const e of enemies) {
+    const r = e.r;
+    ctx.save(); ctx.translate(e.x, e.y);
+    let fill = "#fb7185";
+    if (e.type === E.TANK) fill = "#c084fc";
+    else if (e.type === E.SNIPER) fill = "#f472b6";
+    else if (e.type === E.BOMBER) fill = "#fbbf24";
+    else if (e.type === E.WEAVER) fill = "#a78bfa";
+    else if (e.type === E.CHARGER) fill = "#fb923c";
+
+    ctx.fillStyle = fill;
+    if (e.type === E.CHARGER) {
+      // charger: arrow shape
+      ctx.beginPath();
+      ctx.moveTo(0, r); ctx.lineTo(-r, -r*.5); ctx.lineTo(0, 0); ctx.lineTo(r, -r*.5);
+      ctx.closePath(); ctx.fill();
+    } else if (e.type === E.WEAVER) {
+      // weaver: star shape
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = i * Math.PI/5, rad = i % 2 ? r*.5 : r;
+        const x = Math.cos(a)*rad, y = Math.sin(a)*rad;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.closePath(); ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(0, r); ctx.lineTo(-r, -r*.7); ctx.lineTo(0, -r*.3); ctx.lineTo(r, -r*.7);
+      ctx.closePath(); ctx.fill();
+    }
+    circle(0, 0, 5, "#312e81");
+
+    // HP bar
+    ctx.fillStyle = "#334155"; ctx.fillRect(-r, -r - 12, r*2, 5);
+    ctx.fillStyle = "#f0abfc"; ctx.fillRect(-r, -r - 12, r*2 * Math.max(0, e.hp/e.maxHp), 5);
+    ctx.restore();
+  }
+
+  ctx.fillStyle = "#a5f3fc";
+  for (const s of shots) ctx.fillRect(s.x - 2.5, s.y - 9, 5, 16);
+
+  for (const b of hostile) {
+    circle(b.x, b.y, b.r + 3, "#701a75");
+    circle(b.x, b.y, b.r, "#f0abfc");
+  }
+
+  for (const p of pickups) {
+    const col = p.type === "gun" ? "#facc15" : p.type === "shield" ? "#67e8f9" : "#86efac";
+    ctx.strokeStyle = col; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = col;
+    if (p.type !== "shield") {
+      ctx.fillRect(p.x - 2.5, p.y - 8, 5, 16);
+      ctx.fillRect(p.x - 8, p.y - 2.5, 16, 5);
+    } else circle(p.x, p.y, 6, col);
+  }
+
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life / .65);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - 2, p.y - 2, 5, 5);
+  }
+  ctx.globalAlpha = 1;
+
+  if (player && state !== "over") {
+    ctx.save(); ctx.translate(player.x, player.y);
+    ctx.globalAlpha = player.immune > 0 ? .4 + Math.abs(Math.sin(elapsed*25))*.6 : 1;
+    ctx.fillStyle = "#fb923c";
+    ctx.beginPath();
+    ctx.moveTo(-8, 15); ctx.lineTo(0, 32 + Math.random()*12); ctx.lineTo(8, 15); ctx.fill();
+    ctx.shadowColor = "#67e8f9"; ctx.shadowBlur = 22;
+    ctx.fillStyle = player.dashTime > 0 ? "#ffffff" : "#67e8f9";
+    ctx.beginPath();
+    ctx.moveTo(0, -24); ctx.lineTo(19, 18); ctx.lineTo(0, 9); ctx.lineTo(-19, 18);
+    ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+    if (player.shield) {
+      ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.arc(0, 0, 32, 0, Math.PI*2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  if (timeScale < 1) {
+    ctx.fillStyle = "rgba(103,232,249,.08)";
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.restore();
+}
+
+function hud() {
+  if (!player) return;
+  document.getElementById("score").textContent = "Score: " + score;
+  document.getElementById("lives").textContent = "Lives: " + player.hp;
+  document.getElementById("weapon").textContent = "Gun: " + player.gun;
+  document.getElementById("level").textContent = "Level: " + lvl();
+  const d = document.getElementById("dash");
+  d.disabled = state !== "playing" || player.cooldown > 0;
+  d.textContent = player.cooldown > 0 ? "⚡ " + player.cooldown.toFixed(1) + "s" : "⚡ DASH";
+}
+
+function point(ev) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (ev.clientX - rect.left) * W / rect.width,
+    y: (ev.clientY - rect.top) * H / rect.height
+  };
+}
+
+canvas.addEventListener("pointerdown", e => {
+  if (state !== "playing" || pointer !== null) return;
+  e.preventDefault();
+  pointer = e.pointerId;
+  prevPtr = point(e);
+  canvas.setPointerCapture(pointer);
+});
+
+canvas.addEventListener("pointermove", e => {
+  if (e.pointerId !== pointer || !prevPtr) return;
+  e.preventDefault();
+  const p = point(e);
+  pendX += p.x - prevPtr.x; pendY += p.y - prevPtr.y;
+  prevPtr = p;
+});
+
+function release(e) {
+  if (e.pointerId === pointer) { pointer = null; prevPtr = null; pendX = pendY = 0; }
+}
+canvas.addEventListener("pointerup", release);
+canvas.addEventListener("pointercancel", release);
+canvas.addEventListener("lostpointercapture", release);
+canvas.addEventListener("contextmenu", e => e.preventDefault());
+
+document.getElementById("dash").addEventListener("pointerdown", e => { e.preventDefault(); dash(); });
+document.getElementById("dash").addEventListener("contextmenu", e => e.preventDefault());
+document.getElementById("pause").onclick = pause;
+
+window.addEventListener("keydown", e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "w", "a", "s", "d"].includes(k)) {
+    e.preventDefault();
+    if (state === "playing") keys.add(k);
+  }
+  if (e.code === "Space") { e.preventDefault(); if (!e.repeat) dash(); }
+  if (e.code === "KeyP" && !e.repeat) pause();
+});
+window.addEventListener("keyup", e => keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));
+window.addEventListener("blur", () => { clearInput(); if (state === "playing") pause(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden && state === "playing") pause(); });
+
+panel("NEON ASSAULT", "Bullet-time dash, 6 monster types, endless escalation.", "Launch", start);
+
+let prev = performance.now();
+function frame(now) {
+  const et = Math.min((now - prev) / 1000, .05);
+  prev = now;
+  const steps = Math.max(1, Math.ceil(et / .008));
+  const dt = et / steps;
+  for (let i = 0; i < steps; i++) update(dt);
+  hud();
+  draw();
   requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>
